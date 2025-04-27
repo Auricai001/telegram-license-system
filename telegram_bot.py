@@ -8,6 +8,10 @@ import re
 from datetime import datetime, timedelta
 from fpdf import FPDF
 from dotenv import load_dotenv
+import psycopg2
+from psycopg2 import sql
+from flask import Flask, request
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -17,6 +21,8 @@ STELLAR_PUBLIC_KEY = os.getenv('STELLAR_PUBLIC_KEY')
 STELLAR_SECRET_KEY = os.getenv('STELLAR_SECRET_KEY')
 print(f"Loaded STELLAR_PUBLIC_KEY: {STELLAR_PUBLIC_KEY}")
 print(f"Loaded STELLAR_SECRET_KEY: {STELLAR_SECRET_KEY}")
+DATABASE_URL = os.getenv('DATABASE_URL')
+print(f"Loaded DATABASE_URL: {DATABASE_URL}")
 
 # Admin settings
 ADMIN_USER_ID = 359966763  # Replace with your actual Telegram user ID
@@ -33,45 +39,166 @@ BOT_LINK = "https://t.me/YourLicenseBot"  # Replace with your actual bot link
 # States for conversation
 NAME, PRODUCT, PRICING_TIER, PAYMENT, ADMIN_ADD_PRODUCT, ADMIN_ADD_PRODUCT_FILE, ADMIN_EDIT_PRODUCT, ADMIN_EDIT_PRODUCT_ID, ADMIN_EDIT_PRODUCT_FIELD = range(9)
 
-# License and transaction databases
-LICENSE_DB = 'licenses.json'
-TRANSACTION_DB = 'transactions.json'
-PRODUCTS_DB = 'products.json'
+# Initialize Flask app
+app = Flask(__name__)
 
-# Load products dynamically
+# Database connection
+def get_db_connection():
+    return psycopg2.connect(DATABASE_URL)
+
+# Initialize database tables
+def init_db():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS products (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            file TEXT NOT NULL,
+            is_trial BOOLEAN DEFAULT FALSE,
+            expiry_days INTEGER,
+            pricing_tiers JSONB
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS licenses (
+            license_key TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            hwid TEXT,
+            expiry TEXT NOT NULL,
+            active BOOLEAN DEFAULT TRUE,
+            tx_hash TEXT,
+            product TEXT NOT NULL,
+            is_trial BOOLEAN DEFAULT FALSE
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS transactions (
+            license_key TEXT PRIMARY KEY,
+            username TEXT NOT NULL,
+            product TEXT NOT NULL,
+            product_file TEXT NOT NULL,
+            pdf_file TEXT NOT NULL,
+            is_trial BOOLEAN DEFAULT FALSE
+        );
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+# Load products from PostgreSQL
 def load_products():
-    try:
-        with open(PRODUCTS_DB, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, name, file, is_trial, expiry_days, pricing_tiers FROM products")
+    rows = cur.fetchall()
+    products = {}
+    for row in rows:
+        product_id, name, file, is_trial, expiry_days, pricing_tiers = row
+        products[str(product_id)] = {
+            'name': name,
+            'file': file,
+            'is_trial': is_trial,
+            'expiry_days': expiry_days,
+            'pricing_tiers': pricing_tiers or {}
+        }
+    cur.close()
+    conn.close()
+    return products
 
 def save_products(products):
-    with open(PRODUCTS_DB, 'w') as f:
-        json.dump(products, f, indent=4)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Clear existing products
+    cur.execute("DELETE FROM products")
+    # Insert updated products
+    for product_id, info in products.items():
+        cur.execute(
+            """
+            INSERT INTO products (id, name, file, is_trial, expiry_days, pricing_tiers)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (int(product_id), info['name'], info['file'], info.get('is_trial', False), info.get('expiry_days'), info.get('pricing_tiers'))
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
 
-# Load other databases
 def load_licenses():
-    try:
-        with open(LICENSE_DB, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT license_key, username, hwid, expiry, active, tx_hash, product, is_trial FROM licenses")
+    rows = cur.fetchall()
+    licenses = {}
+    for row in rows:
+        license_key, username, hwid, expiry, active, tx_hash, product, is_trial = row
+        licenses[license_key] = {
+            'username': username,
+            'hwid': hwid,
+            'expiry': expiry,
+            'active': active,
+            'tx_hash': tx_hash,
+            'product': product,
+            'is_trial': is_trial
+        }
+    cur.close()
+    conn.close()
+    return licenses
 
 def save_licenses(licenses):
-    with open(LICENSE_DB, 'w') as f:
-        json.dump(licenses, f, indent=4)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Clear existing licenses
+    cur.execute("DELETE FROM licenses")
+    # Insert updated licenses
+    for license_key, info in licenses.items():
+        cur.execute(
+            """
+            INSERT INTO licenses (license_key, username, hwid, expiry, active, tx_hash, product, is_trial)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (license_key, info['username'], info['hwid'], info['expiry'], info['active'], info['tx_hash'], info['product'], info['is_trial'])
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
 
 def load_transactions():
-    try:
-        with open(TRANSACTION_DB, 'r') as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT license_key, username, product, product_file, pdf_file, is_trial FROM transactions")
+    rows = cur.fetchall()
+    transactions = {}
+    for row in rows:
+        license_key, username, product, product_file, pdf_file, is_trial = row
+        transactions[license_key] = {
+            'username': username,
+            'product': product,
+            'product_file': product_file,
+            'pdf_file': pdf_file,
+            'is_trial': is_trial
+        }
+    cur.close()
+    conn.close()
+    return transactions
 
 def save_transactions(transactions):
-    with open(TRANSACTION_DB, 'w') as f:
-        json.dump(transactions, f, indent=4)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # Clear existing transactions
+    cur.execute("DELETE FROM transactions")
+    # Insert updated transactions
+    for license_key, info in transactions.items():
+        cur.execute(
+            """
+            INSERT INTO transactions (license_key, username, product, product_file, pdf_file, is_trial)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (license_key, info['username'], info['product'], info['product_file'], info['pdf_file'], info['is_trial'])
+        )
+    conn.commit()
+    cur.close()
+    conn.close()
 
 # Log admin actions
 def log_admin_action(user_id, action):
@@ -105,6 +232,39 @@ def check_payment(sender_address):
     if sender_address == TEST_ADDRESS:
         return True, "simulated-tx-hash-1234567890"
     return False, None
+
+# Flask endpoint for license validation
+@app.route('/validate', methods=['POST'])
+def validate():
+    data = request.form
+    license_key = data.get('license_key')
+    hwid = data.get('hwid')
+
+    if not license_key or not hwid:
+        return "Missing license_key or hwid", 400
+
+    licenses = load_licenses()
+    if license_key not in licenses:
+        return "Invalid license key", 404
+
+    license = licenses[license_key]
+    expiry_date = datetime.strptime(license['expiry'], '%Y-%m-%d')
+    current_date = datetime.now()
+
+    if license['hwid'] and license['hwid'] != hwid:
+        return "HWID mismatch", 403
+    if not license['active']:
+        return "License deactivated", 403
+    if current_date > expiry_date:
+        return "License expired", 403
+
+    # If HWID is not set, bind it to the license
+    if not license['hwid']:
+        license['hwid'] = hwid
+        licenses[license_key] = license
+        save_licenses(licenses)
+
+    return "valid", 200
 
 # Admin commands
 async def admin_list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -460,8 +620,12 @@ async def admin_delete_product(update: Update, context: ContextTypes.DEFAULT_TYP
         return
     
     product_name = products[product_id]['name']
-    del products[product_id]
-    save_products(products)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM products WHERE id = %s", (int(product_id),))
+    conn.commit()
+    cur.close()
+    conn.close()
     log_admin_action(update.effective_user.id, f"Deleted product ID {product_id}: {product_name}")
     await update.message.reply_text(f"Product ID {product_id} deleted successfully!")
 
@@ -887,7 +1051,19 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     return ConversationHandler.END
 
+def run_flask():
+    app.run(host='0.0.0.0', port=5000)
+
 def main():
+    # Initialize the database
+    init_db()
+
+    # Start Flask server in a separate thread
+    flask_thread = threading.Thread(target=run_flask)
+    flask_thread.daemon = True
+    flask_thread.start()
+
+    # Start Telegram bot
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     conv_handler = ConversationHandler(
