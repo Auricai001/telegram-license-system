@@ -1,5 +1,4 @@
 import telegram
-from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ConversationHandler, ContextTypes
 import json
 import uuid
@@ -12,6 +11,9 @@ import psycopg2
 from psycopg2 import sql
 from flask import Flask, request
 import threading
+import time
+import signal
+import sys
 
 # Load environment variables
 load_dotenv()
@@ -267,7 +269,7 @@ def validate():
     return "valid", 200
 
 # Admin commands
-async def admin_list_products(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_list_products(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return
@@ -285,7 +287,7 @@ async def admin_list_products(update: Update, context: ContextTypes.DEFAULT_TYPE
                               for key, info in products.items()])
     await update.message.reply_text(f"Products:\n{product_list}")
 
-async def admin_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def admin_add_product(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.effective_user.id != ADMIN_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return ConversationHandler.END
@@ -301,7 +303,7 @@ async def admin_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     context.user_data['admin_product'] = {}
     return ADMIN_ADD_PRODUCT
 
-async def admin_add_product_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def admin_add_product_details(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
     if 'name' not in context.user_data['admin_product']:
         context.user_data['admin_product']['name'] = text
@@ -317,7 +319,7 @@ async def admin_add_product_details(update: Update, context: ContextTypes.DEFAUL
             await update.message.reply_text(
                 "Please provide pricing tiers in the format:\n"
                 "tier_number,price_usd,price_xlm,expiry_days\n"
-                "For example: 1,10,50,30\n"
+                "For example: gresql1,10,50,30\n"
                 "Enter one tier per message. Type 'done' when finished."
             )
         return ADMIN_ADD_PRODUCT
@@ -372,7 +374,7 @@ async def admin_add_product_details(update: Update, context: ContextTypes.DEFAUL
         await update.message.reply_text(f"Invalid format: {str(e)}. Please use: tier_number,price_usd,price_xlm,expiry_days (e.g., 1,10,50,30)")
         return ADMIN_ADD_PRODUCT
 
-async def admin_add_product_file(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def admin_add_product_file(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if not update.message.document:
         await update.message.reply_text("Please upload a file (e.g., an .ex4 or .ex5 file).")
         return ADMIN_ADD_PRODUCT_FILE
@@ -395,7 +397,7 @@ async def admin_add_product_file(update: Update, context: ContextTypes.DEFAULT_T
     await update.message.reply_text("File uploaded successfully! Is this a trial product? (yes/no)")
     return ADMIN_ADD_PRODUCT
 
-async def admin_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def admin_edit_product(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     if update.effective_user.id != ADMIN_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return ConversationHandler.END
@@ -434,7 +436,7 @@ async def admin_edit_product(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("Please provide the product ID to edit (e.g., 1).")
         return ADMIN_EDIT_PRODUCT_ID
 
-async def admin_edit_product_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def admin_edit_product_id(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     product_id = update.message.text.strip()
     # Remove any "ID: " prefix if present
     product_id = product_id.replace("ID: ", "").strip()
@@ -458,7 +460,7 @@ async def admin_edit_product_id(update: Update, context: ContextTypes.DEFAULT_TY
     )
     return ADMIN_EDIT_PRODUCT
 
-async def admin_edit_product_details(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def admin_edit_product_details(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     choice = update.message.text.strip()
     product_id = context.user_data.get('admin_edit_product_id')
     product = context.user_data.get('admin_edit_product')
@@ -502,7 +504,7 @@ async def admin_edit_product_details(update: Update, context: ContextTypes.DEFAU
         await update.message.reply_text("Invalid choice. Please select an option (1-5).")
         return ADMIN_EDIT_PRODUCT
 
-async def admin_edit_product_field(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def admin_edit_product_field(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
     product = context.user_data.get('admin_edit_product')
     field = context.user_data.get('admin_edit_field')
@@ -604,7 +606,7 @@ async def admin_edit_product_field(update: Update, context: ContextTypes.DEFAULT
     )
     return ADMIN_EDIT_PRODUCT
 
-async def admin_delete_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_delete_product(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return
@@ -629,7 +631,7 @@ async def admin_delete_product(update: Update, context: ContextTypes.DEFAULT_TYP
     log_admin_action(update.effective_user.id, f"Deleted product ID {product_id}: {product_name}")
     await update.message.reply_text(f"Product ID {product_id} deleted successfully!")
 
-async def admin_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def admin_help(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.effective_user.id != ADMIN_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return
@@ -660,7 +662,7 @@ async def admin_help(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await update.message.reply_text(help_text)
 
 # User commands
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     await update.message.reply_text(
         "Welcome to LicenseBot! Let's get started.\nWhat's your name?"
@@ -668,7 +670,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['state'] = NAME
     return NAME
 
-async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def get_name(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['name'] = update.message.text.strip()
     products = load_products()
     product_list = "\n".join([f"{key}. {info['name']}" for key, info in products.items()])
@@ -678,7 +680,7 @@ async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['state'] = PRODUCT
     return PRODUCT
 
-async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def select_product(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     product_choice = update.message.text.strip()
     products = load_products()
     if product_choice not in products:
@@ -764,7 +766,7 @@ async def select_product(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     context.user_data['state'] = PRICING_TIER
     return PRICING_TIER
 
-async def select_pricing_tier(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def select_pricing_tier(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     tier_choice = update.message.text.strip()
     product_choice = context.user_data['product']
     products = load_products()
@@ -795,7 +797,7 @@ async def select_pricing_tier(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data['state'] = PAYMENT
     return PAYMENT
 
-async def verify_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def verify_payment(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     sender_address = update.message.text.strip()
     sender_address = re.sub(r'[^A-Z0-9]', '', sender_address.upper())
     
@@ -870,7 +872,7 @@ async def verify_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             
             with open('usage_guide.pdf', 'rb') as f:
                 await update.message.reply_text("Sending Usage Guide...")
-                await update.message.reply_document(f, caption="Usage Guide")
+                await update.message.reply_document(f, caption="Usage Guide.Symbol")
             
             await update.message.reply_text("Thank you! Check your files above.")
         except Exception as e:
@@ -886,7 +888,7 @@ async def verify_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return PAYMENT
 
-async def resend_files(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def resend_files(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not context.args:
         await update.message.reply_text("Please provide your license key. Usage: /resend <license_key>")
         return
@@ -932,7 +934,7 @@ async def resend_files(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             "Please contact support with your license key and transaction details."
         )
 
-async def validate_license(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def validate_license(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     context.user_data.pop('state', None)
     context.user_data.pop('name', None)
     context.user_data.pop('product', None)
@@ -980,7 +982,7 @@ async def validate_license(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         context.user_data['validate_state'] = 'awaiting_hwid'
         context.user_data['validate_start_time'] = datetime.now()
 
-async def handle_validate_hwid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def handle_validate_hwid(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if 'validate_state' not in context.user_data or context.user_data['validate_state'] != 'awaiting_hwid':
         return
 
@@ -1046,13 +1048,19 @@ async def handle_validate_hwid(update: Update, context: ContextTypes.DEFAULT_TYP
     context.user_data.pop('validate_key', None)
     context.user_data.pop('validate_start_time', None)
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def cancel(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     await update.message.reply_text("Process cancelled.")
     context.user_data.clear()
     return ConversationHandler.END
 
 def run_flask():
     app.run(host='0.0.0.0', port=5000)
+
+def signal_handler(sig, frame):
+    print("Shutting down bot gracefully...")
+    if 'application' in globals():
+        application.stop_running()
+    sys.exit(0)
 
 def main():
     # Initialize the database
@@ -1063,7 +1071,12 @@ def main():
     flask_thread.daemon = True
     flask_thread.start()
 
-    # Start Telegram bot
+    # Set up signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    # Start Telegram bot with conflict handling
+    global application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
     conv_handler = ConversationHandler(
@@ -1097,7 +1110,28 @@ def main():
     application.add_handler(CommandHandler("admin_delete_product", admin_delete_product))
     application.add_handler(CommandHandler("admin_help", admin_help))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_validate_hwid))
-    application.run_polling()
+
+    # Retry polling with exponential backoff in case of conflicts
+    retry_count = 0
+    max_retries = 5
+    base_delay = 5  # seconds
+
+    while retry_count < max_retries:
+        try:
+            print(f"Starting bot polling (attempt {retry_count + 1}/{max_retries})...")
+            application.run_polling()
+            break  # Exit loop if polling starts successfully
+        except telegram.error.Conflict as e:
+            retry_count += 1
+            if retry_count == max_retries:
+                print(f"Failed to start bot after {max_retries} attempts: {e}")
+                sys.exit(1)
+            delay = base_delay * (2 ** retry_count)  # Exponential backoff
+            print(f"Conflict detected: {e}. Retrying in {delay} seconds...")
+            time.sleep(delay)
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            sys.exit(1)
 
 if __name__ == '__main__':
     main()
