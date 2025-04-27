@@ -1,0 +1,37 @@
+{
+    "4a92d5e3-1652-450a-ac54-9e5284f0bbe7": {
+        "username": "dddddd",
+        "product": "MT5 Expert Advisor Trial",
+        "product_file": "expert_advisor_trial.ex5",
+        "pdf_file": "license_4a92d5e3-1652-450a-ac54-9e5284f0bbe7.pdf",
+        "is_trial": true
+    },
+    "de9b62e2-df70-4ca8-91d5-ed1526c423c4": {
+        "username": "fu",
+        "product": "MT4 Expert Advisor",
+        "product_file": "expert_advisor.ex4",
+        "pdf_file": "license_de9b62e2-df70-4ca8-91d5-ed1526c423c4.pdf",
+        "is_trial": false
+    },
+    "a8a82355-2c1c-47d6-aa5b-4353e4ae0130": {
+        "username": "solo",
+        "product": "MT5 Expert Advisor",
+        "product_file": "expert_advisor.ex5",
+        "pdf_file": "license_a8a82355-2c1c-47d6-aa5b-4353e4ae0130.pdf",
+        "is_trial": false
+    },
+    "1626c699-03fe-4a32-a5a3-241777d14950": {
+        "username": "Good",
+        "product": "Best",
+        "product_file": "expert_advisor.ex4",
+        "pdf_file": "license_1626c699-03fe-4a32-a5a3-241777d14950.pdf",
+        "is_trial": false
+    },
+    "5ef28501-71ac-4232-853e-e4cc1816e141": {
+        "username": "ben",
+        "product": "MT5 Expert Advisor",
+        "product_file": "expert_advisor.ex5",
+        "pdf_file": "license_5ef28501-71ac-4232-853e-e4cc1816e141.pdf",
+        "is_trial": false
+    }
+}

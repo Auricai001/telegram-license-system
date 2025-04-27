@@ -1,0 +1,64 @@
+I have some questions
+
+1. How do i handle product purchased by users and after payment the bot did not deliver the product because of error from either the bot or the user.
+
+2. How do i set different prices and expiring dates for the products e.g $10, $50, $100 and expiring period of 1month, 3months, 6months and 1year etc
+
+3.How can i create trial version
+
+4. I want to post a trial version in a public group but i want it to have all the security measures we have in place and display information that will direct them back to the bot for purchase after the expiration of the trial since they didn't get it from the bot originally.
+
+
+
+These are excellent questions! Let’s address each one systematically to ensure your bot can handle these scenarios effectively. I’ll then provide the updated telegram_bot.py code incorporating the changes needed to support different prices, expiration periods, and trial versions, along with guidance on handling errors and distributing trial versions securely.
+
+1. How to Handle Product Delivery Failures After Payment
+If the bot fails to deliver the product after a successful payment due to an error (either from the bot or the user), you need a mechanism to verify the payment manually and resend the product files to the user. Here’s how to handle this:
+
+Solution:
+Add a /resend Command: Create a command that allows users to request the bot to resend their purchased files if they didn’t receive them.
+Track Transactions: Store the transaction details (e.g., license key, username, product) in context.user_data during the purchase flow and save them to a separate transactions.json file for reference.
+Manual Verification: If the bot fails entirely, you can manually verify the Stellar payment using the transaction hash and resend the files.
+Implementation:
+Create a transactions.json File to store transaction details after a successful payment.
+Modify the verify_payment Function to save transaction details.
+Add a /resend Command to resend files based on the license key.
+Let’s update the code to include these features.
+
+2. How to Set Different Prices and Expiring Dates for Products
+You want to offer products at different price points (e.g., $10, $50, $100) and with varying expiration periods (e.g., 1 month, 3 months, 6 months, 1 year). We’ll modify the PRODUCTS dictionary to include these options and update the bot to prompt the user to select a pricing tier and corresponding expiration period.
+
+Solution:
+Update the PRODUCTS Dictionary: Include multiple pricing tiers for each product, each with a price and expiration period.
+Add a Pricing Tier Selection Step: After the user selects a product, prompt them to choose a pricing tier.
+Set Expiration Dates Dynamically: Calculate the expiration date based on the selected tier.
+Implementation:
+Add a new state PRICING_TIER in the ConversationHandler.
+Update the PRODUCTS dictionary to include pricing tiers.
+Modify the conversation flow to include the pricing tier selection.
+3. How to Create a Trial Version
+A trial version should allow users to use the product for a limited time (e.g., 7 days) with restricted features or a watermark, and it should include all security measures (e.g., HWID locking).
+
+Solution:
+Create Trial Licenses: Add a trial option in the PRODUCTS dictionary with a short expiration period (e.g., 7 days) and no payment required.
+Restrict Features: The trial version of the EA should have limited functionality (e.g., restricted trading capabilities), which you’ll need to implement in the EA code (expert_advisor.ex4 and expert_advisor.ex5).
+HWID Locking: Ensure the trial license still requires HWID locking, just like paid licenses.
+Implementation:
+Add a trial product to the PRODUCTS dictionary.
+Skip the payment step for trial licenses.
+Generate a trial license key with a short expiration period.
+4. How to Distribute a Trial Version in a Public Group with Security Measures
+You want to post a trial version in a public group, ensuring it has all security measures (HWID locking, expiration) and directs users back to the bot for purchase after the trial expires.
+
+Solution:
+Distribute the Trial EA Files: Post the trial EA files (expert_advisor_trial.ex4 and expert_advisor_trial.ex5) in the public group, along with a license key that users can use to activate the trial.
+Include Security Measures:
+HWID Locking: The trial EA should still submit the HWID to the bot and lock to the user’s machine.
+Expiration: The trial license should expire after a set period (e.g., 7 days).
+Direct Users Back to the Bot:
+Display a Message in the EA: Modify the EA code to display a message after the trial expires, directing users to the bot (e.g., “Trial expired! Purchase a full license at [Bot Link]”).
+Include Instructions in the Group Post: Provide instructions in the group post on how to activate the trial and where to purchase the full version.
+Implementation:
+Add a /trial command to allow users to request a trial license directly from the bot.
+Update the EA code to display a message after the trial expires (this will require changes to expert_advisor.ex4 and expert_advisor.ex5, which we’ll outline).
+Include instructions in the group post.

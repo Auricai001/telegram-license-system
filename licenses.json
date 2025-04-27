@@ -1,0 +1,167 @@
+{
+    "d54bad8f-8b5e-4184-aa17-f2fabebaeae8": {
+        "username": "Olu",
+        "hwid": "",
+        "expiry": "2025-05-25",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT4 Expert Advisor"
+    },
+    "56401c8a-4e10-45fd-9155-87c45080e72d": {
+        "username": "don",
+        "hwid": "",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT4 Expert Advisor"
+    },
+    "67bbdcf2-fcdf-406e-8d98-3a26071b6a05": {
+        "username": "don",
+        "hwid": "",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT4 Expert Advisor"
+    },
+    "ad78cd27-5e3c-4dac-b733-32ac0f9eb850": {
+        "username": "don",
+        "hwid": "",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT4 Expert Advisor"
+    },
+    "227ec79a-ce84-4070-9a2a-86b0a756d1ee": {
+        "username": "don",
+        "hwid": "",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT4 Expert Advisor"
+    },
+    "a79d6e94-3385-4c6c-84dc-e76b3a91b5b1": {
+        "username": "don",
+        "hwid": "",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT5 Expert Advisor"
+    },
+    "b0c08c68-7f37-420d-a66f-c9dbc14e4338": {
+        "username": "don",
+        "hwid": "",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT4 Expert Advisor"
+    },
+    "834dfbe2-1612-4136-83f8-ac6af892ec39": {
+        "username": "don",
+        "hwid": "",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT5 Expert Advisor"
+    },
+    "6617f8bf-c60c-454f-b4c2-a63ac4b42a2e": {
+        "username": "don",
+        "hwid": "TEST-HWID-123",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT5 Expert Advisor"
+    },
+    "9399b105-be76-4420-9557-2e6893999665": {
+        "username": "don",
+        "hwid": "TEST-HWID-123",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT5 Expert Advisor"
+    },
+    "d7ada153-06f3-4906-b470-a6f5fde0a067": {
+        "username": "sdf",
+        "hwid": "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT4 Expert Advisor"
+    },
+    "d40f0d04-b37b-4f33-ba35-6ed8e76d1f20": {
+        "username": "sdf",
+        "hwid": "b294a9a6cc44f220718bd77a6bb02e61",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT4 Expert Advisor"
+    },
+    "850fda0e-0bd9-4384-a02f-c13f453f6a8e": {
+        "username": "nl",
+        "hwid": "b294a9a6cc44f220718bd77a6bb02e61",
+        "expiry": "2025-05-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT5 Expert Advisor"
+    },
+    "8e689ac2-ad9a-4fca-8ed5-fff3e811b560": {
+        "username": "ddd",
+        "hwid": "b294a9a6cc44f220718bd77a6bb02e61",
+        "expiry": "2025-05-27",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT5 Expert Advisor"
+    },
+    "89479712-edc5-4782-a773-ae1a380407dc": {
+        "username": "fu",
+        "hwid": "",
+        "expiry": "2025-05-27",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT4 Expert Advisor"
+    },
+    "4a92d5e3-1652-450a-ac54-9e5284f0bbe7": {
+        "username": "dddddd",
+        "hwid": "b294a9a6cc44f220718bd77a6bb02e61",
+        "expiry": "2025-05-04",
+        "active": true,
+        "tx_hash": "trial-no-payment",
+        "product": "MT5 Expert Advisor Trial",
+        "is_trial": true
+    },
+    "de9b62e2-df70-4ca8-91d5-ed1526c423c4": {
+        "username": "fu",
+        "hwid": "",
+        "expiry": "2025-05-27",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT4 Expert Advisor",
+        "is_trial": false
+    },
+    "a8a82355-2c1c-47d6-aa5b-4353e4ae0130": {
+        "username": "solo",
+        "hwid": "",
+        "expiry": "2025-07-26",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT5 Expert Advisor",
+        "is_trial": false
+    },
+    "1626c699-03fe-4a32-a5a3-241777d14950": {
+        "username": "Good",
+        "hwid": "",
+        "expiry": "2025-05-12",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "Best",
+        "is_trial": false
+    },
+    "5ef28501-71ac-4232-853e-e4cc1816e141": {
+        "username": "ben",
+        "hwid": "",
+        "expiry": "2026-04-27",
+        "active": true,
+        "tx_hash": "simulated-tx-hash-1234567890",
+        "product": "MT5 Expert Advisor",
+        "is_trial": false
+    }
+}

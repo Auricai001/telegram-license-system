@@ -1,0 +1,66 @@
+{
+    "1": {
+        "name": "Best",
+        "file": "expert_advisor.ex4",
+        "pricing_tiers": {
+            "1": {
+                "price_usd": 20.0,
+                "price_xlm": 60.0,
+                "expiry_days": 15
+            },
+            "2": {
+                "price_usd": 25,
+                "price_xlm": 125,
+                "expiry_days": 90
+            },
+            "3": {
+                "price_usd": 40,
+                "price_xlm": 200,
+                "expiry_days": 180
+            },
+            "4": {
+                "price_usd": 70,
+                "price_xlm": 350,
+                "expiry_days": 365
+            }
+        }
+    },
+    "2": {
+        "name": "MT5 Expert Advisor",
+        "file": "expert_advisor.ex5",
+        "pricing_tiers": {
+            "1": {
+                "price_usd": 15,
+                "price_xlm": 75,
+                "expiry_days": 30
+            },
+            "2": {
+                "price_usd": 35,
+                "price_xlm": 175,
+                "expiry_days": 90
+            },
+            "4": {
+                "price_usd": 100,
+                "price_xlm": 500,
+                "expiry_days": 365
+            },
+            "5": {
+                "price_usd": 150.0,
+                "price_xlm": 800.0,
+                "expiry_days": 730
+            }
+        }
+    },
+    "3": {
+        "name": "MT4 Expert Advisor Trial",
+        "file": "expert_advisor_trial.ex4",
+        "is_trial": true,
+        "expiry_days": 7
+    },
+    "4": {
+        "name": "MT5 Expert Advisor Trial",
+        "file": "expert_advisor_trial.ex5",
+        "is_trial": true,
+        "expiry_days": 7
+    }
+}
