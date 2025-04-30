@@ -16,8 +16,8 @@ import asyncio
 import logging
 import httpx
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Set up logging with DEBUG level
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Load environment variables
@@ -274,13 +274,19 @@ application = Application.builder().token(TELEGRAM_TOKEN).build()
 # Get the event loop for the application
 loop = asyncio.get_event_loop()
 
-# Flask endpoint for Telegram webhook
+# Flask endpoint for Telegram webhook (kept for reference, but not used with polling)
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = telegram.Update.de_json(request.get_json(force=True), application.bot)
     logger.info("Received webhook update")
+    logger.debug(f"Webhook update data: {request.get_json(force=True)}")
     # Process the update in the background without blocking
-    asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+    future = asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+    try:
+        result = future.result(timeout=5)  # Wait up to 5 seconds for the update to process
+        logger.info("Webhook update processed successfully")
+    except Exception as e:
+        logger.error(f"Failed to process webhook update: {str(e)}")
     logger.info("Webhook update scheduled for processing")
     return 'OK', 200
 
@@ -390,7 +396,7 @@ async def admin_add_product_details(update: telegram.Update, context: ContextTyp
             await update.message.reply_text(
                 "Please provide pricing tiers in the format:\n"
                 "tier_number,price_usd,price_xlm,expiry_days\n"
-                "For example: gresql1,10,50,30\n"
+                "For example: 1,10,50,30\n"
                 "Enter one tier per message. Type 'done' when finished."
             )
         end_time = datetime.now()
@@ -425,7 +431,7 @@ async def admin_add_product_details(update: telegram.Update, context: ContextTyp
             'pricing_tiers': context.user_data['admin_product'].get('pricing_tiers', {})
         }
         save_products(products)
-        log_admin_action(update.effective_user.id, f"Added product ID {new_id}: {context.user_data['admin_product']['name']}")
+        log_admin_action(update().effective_user.id, f"Added product ID {new_id}: {context.user_data['admin_product']['name']}")
         await update.message.reply_text(f"Product added successfully! ID: {new_id}")
         context.user_data.pop('admin_product', None)
         end_time = datetime.now()
@@ -778,6 +784,7 @@ async def admin_help(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE
 async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     start_time = datetime.now()
     logger.info("Starting /start handler")
+    logger.debug(f"Update received: {update.to_dict()}")
     context.user_data.clear()
     await update.message.reply_text(
         "Welcome to LicenseBot! Let's get started.\nWhat's your name?"
@@ -1005,7 +1012,7 @@ async def verify_payment(update: telegram.Update, context: ContextTypes.DEFAULT_
             
             with open('usage_guide.pdf', 'rb') as f:
                 await update.message.reply_text("Sending Usage Guide...")
-                await update.message.reply_document(f, caption="Usage Guide.Symbol")
+                await update.message.reply_document(f, caption="Usage Guide")
             
             await update.message.reply_text("Thank you! Check your files above.")
         except Exception as e:
@@ -1275,14 +1282,13 @@ def main():
     # Set up the Telegram bot handlers
     setup_application()
 
-    # Set the webhook in the event loop
-    try:
-        logger.info("Starting webhook setup...")
-        future = asyncio.run_coroutine_threadsafe(initialize_and_set_webhook(), loop)
-        future.result()  # Wait for the coroutine to complete
-        logger.info("Webhook setup completed successfully")
-    except Exception as e:
-        logger.error(f"Error during initialization or webhook setup: {str(e)}")
-        sys.exit(1)
+    # Start polling (instead of setting a webhook)
+    logger.info("Starting bot with polling...")
+    application.run_polling(allowed_updates=telegram.Update.ALL_TYPES)
 
-    #
+    # Note: Flask server is not needed for polling, but we keep it running for the /validate endpoint
+    logger.info("Starting Flask server for /validate endpoint...")
+    app.run(host='0.0.0.0', port=5000)
+
+if __name__ == '__main__':
+    main()
