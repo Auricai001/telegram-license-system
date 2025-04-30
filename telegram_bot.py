@@ -10,8 +10,6 @@ from dotenv import load_dotenv
 import psycopg2
 from psycopg2 import sql
 from flask import Flask, request
-import threading
-import time
 import signal
 import sys
 
@@ -43,9 +41,6 @@ NAME, PRODUCT, PRICING_TIER, PAYMENT, ADMIN_ADD_PRODUCT, ADMIN_ADD_PRODUCT_FILE,
 
 # Initialize Flask app
 app = Flask(__name__)
-
-# Initialize Telegram bot (will be set up in main())
-application = None
 
 # Database connection
 def get_db_connection():
@@ -237,6 +232,9 @@ def check_payment(sender_address):
     if sender_address == TEST_ADDRESS:
         return True, "simulated-tx-hash-1234567890"
     return False, None
+
+# Initialize Telegram bot application
+application = Application.builder().token(TELEGRAM_TOKEN).build()
 
 # Flask endpoint for Telegram webhook
 @app.route('/webhook', methods=['POST'])
@@ -1063,27 +1061,7 @@ async def cancel(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) ->
     context.user_data.clear()
     return ConversationHandler.END
 
-def run_flask():
-    app.run(host='0.0.0.0', port=5000)
-
-def signal_handler(sig, frame):
-    print("Shutting down bot gracefully...")
-    if 'application' in globals():
-        application.stop_running()
-    sys.exit(0)
-
-def main():
-    # Initialize the database
-    init_db()
-
-    # Set up signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    # Start Telegram bot in webhook mode
-    global application
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
-
+def setup_application():
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('start', start),
@@ -1116,6 +1094,22 @@ def main():
     application.add_handler(CommandHandler("admin_help", admin_help))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_validate_hwid))
 
+def signal_handler(sig, frame):
+    print("Shutting down bot gracefully...")
+    application.stop_running()
+    sys.exit(0)
+
+def main():
+    # Initialize the database
+    init_db()
+
+    # Set up signal handlers for graceful shutdown
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    # Set up the Telegram bot handlers
+    setup_application()
+
     # Set webhook (Render URL for the webhook)
     webhook_url = "https://licensebot-hkk2.onrender.com/webhook"
     print(f"Setting webhook to {webhook_url}...")
@@ -1123,7 +1117,7 @@ def main():
 
     # Start Flask server to handle webhook requests
     print("Starting Flask server...")
-    run_flask()
+    app.run(host='0.0.0.0', port=5000)
 
 if __name__ == '__main__':
     main()
