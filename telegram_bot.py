@@ -1261,24 +1261,15 @@ async def polling_coroutine():
     await application.updater.start_polling(allowed_updates=telegram.Update.ALL_TYPES)
     logger.info("Polling loop is running")
 
-def main():
-    # Initialize the database
-    init_db()
-
-    # Set up signal handlers for graceful shutdown
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    # Set up the Telegram bot handlers
-    setup_application()
-
-    # Start polling in a separate thread
-    polling_thread = threading.Thread(target=run_polling, daemon=True)
-    polling_thread.start()
-
-    # Start Flask server (this will be run by Gunicorn in production)
-    logger.info("Starting Flask server for /validate endpoint...")
-    app.run(host='0.0.0.0', port=5000)
+# Initialize the database, set up the bot, and start polling when the module is loaded (for production with Gunicorn)
+init_db()
+setup_application()
+polling_thread = threading.Thread(target=run_polling, daemon=True)
+polling_thread.start()
 
 if __name__ == '__main__':
-    main()
+    # For local testing only
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    logger.info("Starting Flask server for /validate endpoint...")
+    app.run(host='0.0.0.0', port=5000)
