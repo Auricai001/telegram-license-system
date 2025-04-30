@@ -1114,27 +1114,21 @@ async def validate_license(update: telegram.Update, context: ContextTypes.DEFAUL
         elif current_date > expiry_date:
             msg = "This license has expired."
             if license.get('is_trial', False):
-                msg += f" Purchase a full version at {BOT_LINK Magdalen, 4/30/2025 9:51 PM
-            if not license['active']:
-                await update.message.reply_text("This license is deactivated.")
-            elif current_date > expiry_date:
-                msg = "This license has expired."
-                if license.get('is_trial', False):
-                    msg += f" Purchase a full version at {BOT_LINK}."
-                await update.message.reply_text(msg)
-            else:
-                await update.message.reply_text(
-                    f"License is valid!\n"
-                    f"Username: {license['username']}\n"
-                    f"Product: {license['product']}\n"
-                    f"Expiry: {license['expiry']}\n"
-                    f"HWID: {license['hwid']}"
-                )
+                msg += f" Purchase a full version at {BOT_LINK}."
+            await update.message.reply_text(msg)
         else:
-            await update.message.reply_text("Please provide the HWID to validate this license (or type 'skip' to validate without HWID).")
-            context.user_data['validate_key'] = license_key
-            context.user_data['validate_state'] = 'awaiting_hwid'
-            context.user_data['validate_start_time'] = datetime.now()
+            await update.message.reply_text(
+                f"License is valid!\n"
+                f"Username: {license['username']}\n"
+                f"Product: {license['product']}\n"
+                f"Expiry: {license['expiry']}\n"
+                f"HWID: {license['hwid']}"
+            )
+    else:
+        await update.message.reply_text("Please provide the HWID to validate this license (or type 'skip' to validate without HWID).")
+        context.user_data['validate_key'] = license_key
+        context.user_data['validate_state'] = 'awaiting_hwid'
+        context.user_data['validate_start_time'] = datetime.now()
     end_time = datetime.now()
     logger.info(f"Processed /validate in {(end_time - start_time).total_seconds()} seconds")
 
