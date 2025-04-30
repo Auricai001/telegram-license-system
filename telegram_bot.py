@@ -15,6 +15,7 @@ import sys
 import asyncio
 import logging
 import httpx
+import threading
 
 # Set up logging with DEBUG level
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -271,9 +272,6 @@ def check_payment(sender_address):
 # Initialize Telegram bot application
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-# Get the event loop for the application
-loop = asyncio.get_event_loop()
-
 # Flask endpoint for Telegram webhook (kept for reference, but not used with polling)
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -281,7 +279,7 @@ def webhook():
     logger.info("Received webhook update")
     logger.debug(f"Webhook update data: {request.get_json(force=True)}")
     # Process the update in the background without blocking
-    future = asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+    future = asyncio.run_coroutine_threadsafe(application.process_update(update), asyncio.get_event_loop())
     try:
         result = future.result(timeout=5)  # Wait up to 5 seconds for the update to process
         logger.info("Webhook update processed successfully")
@@ -431,7 +429,7 @@ async def admin_add_product_details(update: telegram.Update, context: ContextTyp
             'pricing_tiers': context.user_data['admin_product'].get('pricing_tiers', {})
         }
         save_products(products)
-        log_admin_action(update().effective_user.id, f"Added product ID {new_id}: {context.user_data['admin_product']['name']}")
+        log_admin_action(update.effective_user.id, f"Added product ID {new_id}: {context.user_data['admin_product']['name']}")
         await update.message.reply_text(f"Product added successfully! ID: {new_id}")
         context.user_data.pop('admin_product', None)
         end_time = datetime.now()
@@ -1116,21 +1114,27 @@ async def validate_license(update: telegram.Update, context: ContextTypes.DEFAUL
         elif current_date > expiry_date:
             msg = "This license has expired."
             if license.get('is_trial', False):
-                msg += f" Purchase a full version at {BOT_LINK}."
-            await update.message.reply_text(msg)
+                msg += f" Purchase a full version at {BOT_LINK Magdalen, 4/30/2025 9:51 PM
+            if not license['active']:
+                await update.message.reply_text("This license is deactivated.")
+            elif current_date > expiry_date:
+                msg = "This license has expired."
+                if license.get('is_trial', False):
+                    msg += f" Purchase a full version at {BOT_LINK}."
+                await update.message.reply_text(msg)
+            else:
+                await update.message.reply_text(
+                    f"License is valid!\n"
+                    f"Username: {license['username']}\n"
+                    f"Product: {license['product']}\n"
+                    f"Expiry: {license['expiry']}\n"
+                    f"HWID: {license['hwid']}"
+                )
         else:
-            await update.message.reply_text(
-                f"License is valid!\n"
-                f"Username: {license['username']}\n"
-                f"Product: {license['product']}\n"
-                f"Expiry: {license['expiry']}\n"
-                f"HWID: {license['hwid']}"
-            )
-    else:
-        await update.message.reply_text("Please provide the HWID to validate this license (or type 'skip' to validate without HWID).")
-        context.user_data['validate_key'] = license_key
-        context.user_data['validate_state'] = 'awaiting_hwid'
-        context.user_data['validate_start_time'] = datetime.now()
+            await update.message.reply_text("Please provide the HWID to validate this license (or type 'skip' to validate without HWID).")
+            context.user_data['validate_key'] = license_key
+            context.user_data['validate_state'] = 'awaiting_hwid'
+            context.user_data['validate_start_time'] = datetime.now()
     end_time = datetime.now()
     logger.info(f"Processed /validate in {(end_time - start_time).total_seconds()} seconds")
 
@@ -1249,27 +1253,19 @@ def setup_application():
 def signal_handler(sig, frame):
     logger.info("Shutting down bot gracefully...")
     application.stop_running()
-    loop.stop()
-    loop.close()
     sys.exit(0)
 
-async def initialize_and_set_webhook():
-    try:
-        logger.info("Testing Telegram API connectivity...")
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getMe")
-            logger.info(f"Telegram API response: {response.status_code} - {response.text}")
-        logger.info("Initializing application...")
-        await application.initialize()
-        logger.info("Starting application...")
-        await application.start()
-        webhook_url = "https://licensebot-hkk2.onrender.com/webhook"
-        logger.info(f"Setting webhook to {webhook_url}...")
-        await application.bot.set_webhook(url=webhook_url)
-        logger.info("Webhook set successfully!")
-    except Exception as e:
-        logger.error(f"Failed to set webhook: {str(e)}")
-        raise
+# Function to run the Telegram bot polling in a separate thread
+def run_polling():
+    logger.info("Starting bot polling in a separate thread...")
+    asyncio.run(polling_coroutine())
+
+async def polling_coroutine():
+    await application.initialize()
+    await application.start()
+    logger.info("Bot polling started successfully")
+    await application.updater.start_polling(allowed_updates=telegram.Update.ALL_TYPES)
+    logger.info("Polling loop is running")
 
 def main():
     # Initialize the database
@@ -1282,11 +1278,11 @@ def main():
     # Set up the Telegram bot handlers
     setup_application()
 
-    # Start polling (instead of setting a webhook)
-    logger.info("Starting bot with polling...")
-    application.run_polling(allowed_updates=telegram.Update.ALL_TYPES)
+    # Start polling in a separate thread
+    polling_thread = threading.Thread(target=run_polling, daemon=True)
+    polling_thread.start()
 
-    # Note: Flask server is not needed for polling, but we keep it running for the /validate endpoint
+    # Start Flask server (this will be run by Gunicorn in production)
     logger.info("Starting Flask server for /validate endpoint...")
     app.run(host='0.0.0.0', port=5000)
 
