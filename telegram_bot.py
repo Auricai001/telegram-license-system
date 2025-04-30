@@ -14,6 +14,7 @@ import signal
 import sys
 import asyncio
 import logging
+import httpx
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -94,6 +95,8 @@ def init_db():
 
 # Load products from PostgreSQL
 def load_products():
+    start_time = datetime.now()
+    logger.info("Loading products from database")
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT id, name, file, is_trial, expiry_days, pricing_tiers FROM products")
@@ -110,9 +113,13 @@ def load_products():
         }
     cur.close()
     conn.close()
+    end_time = datetime.now()
+    logger.info(f"Loaded products in {(end_time - start_time).total_seconds()} seconds")
     return products
 
 def save_products(products):
+    start_time = datetime.now()
+    logger.info("Saving products to database")
     conn = get_db_connection()
     cur = conn.cursor()
     # Clear existing products
@@ -129,8 +136,12 @@ def save_products(products):
     conn.commit()
     cur.close()
     conn.close()
+    end_time = datetime.now()
+    logger.info(f"Saved products in {(end_time - start_time).total_seconds()} seconds")
 
 def load_licenses():
+    start_time = datetime.now()
+    logger.info("Loading licenses from database")
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT license_key, username, hwid, expiry, active, tx_hash, product, is_trial FROM licenses")
@@ -149,9 +160,13 @@ def load_licenses():
         }
     cur.close()
     conn.close()
+    end_time = datetime.now()
+    logger.info(f"Loaded licenses in {(end_time - start_time).total_seconds()} seconds")
     return licenses
 
 def save_licenses(licenses):
+    start_time = datetime.now()
+    logger.info("Saving licenses to database")
     conn = get_db_connection()
     cur = conn.cursor()
     # Clear existing licenses
@@ -168,8 +183,12 @@ def save_licenses(licenses):
     conn.commit()
     cur.close()
     conn.close()
+    end_time = datetime.now()
+    logger.info(f"Saved licenses in {(end_time - start_time).total_seconds()} seconds")
 
 def load_transactions():
+    start_time = datetime.now()
+    logger.info("Loading transactions from database")
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("SELECT license_key, username, product, product_file, pdf_file, is_trial FROM transactions")
@@ -186,9 +205,13 @@ def load_transactions():
         }
     cur.close()
     conn.close()
+    end_time = datetime.now()
+    logger.info(f"Loaded transactions in {(end_time - start_time).total_seconds()} seconds")
     return transactions
 
 def save_transactions(transactions):
+    start_time = datetime.now()
+    logger.info("Saving transactions to database")
     conn = get_db_connection()
     cur = conn.cursor()
     # Clear existing transactions
@@ -205,6 +228,8 @@ def save_transactions(transactions):
     conn.commit()
     cur.close()
     conn.close()
+    end_time = datetime.now()
+    logger.info(f"Saved transactions in {(end_time - start_time).total_seconds()} seconds")
 
 # Log admin actions
 def log_admin_action(user_id, action):
@@ -219,6 +244,8 @@ def generate_license_key():
     return str(uuid.uuid4())
 
 def create_pdf_license(license_key, username, expiry, product_name, is_trial=False):
+    start_time = datetime.now()
+    logger.info("Creating PDF license")
     pdf = FPDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
@@ -231,6 +258,8 @@ def create_pdf_license(license_key, username, expiry, product_name, is_trial=Fal
         pdf.cell(200, 10, txt=f"Trial Version - Purchase the full version at {BOT_LINK}", ln=True)
     pdf_file = f"license_{license_key}.pdf"
     pdf.output(pdf_file)
+    end_time = datetime.now()
+    logger.info(f"Created PDF license in {(end_time - start_time).total_seconds()} seconds")
     return pdf_file
 
 def check_payment(sender_address):
@@ -250,24 +279,27 @@ loop = asyncio.get_event_loop()
 def webhook():
     update = telegram.Update.de_json(request.get_json(force=True), application.bot)
     logger.info("Received webhook update")
-    # Run the async process_update in the application's event loop
-    future = asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
-    future.result()  # Wait for the coroutine to complete
-    logger.info("Processed webhook update")
+    # Process the update in the background without blocking
+    asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+    logger.info("Webhook update scheduled for processing")
     return 'OK', 200
 
 # Flask endpoint for license validation
 @app.route('/validate', methods=['POST'])
 def validate():
+    start_time = datetime.now()
+    logger.info("Validating license via /validate endpoint")
     data = request.form
     license_key = data.get('license_key')
     hwid = data.get('hwid')
 
     if not license_key or not hwid:
+        logger.error("Missing license_key or hwid")
         return "Missing license_key or hwid", 400
 
     licenses = load_licenses()
     if license_key not in licenses:
+        logger.error(f"Invalid license key: {license_key}")
         return "Invalid license key", 404
 
     license = licenses[license_key]
@@ -275,10 +307,13 @@ def validate():
     current_date = datetime.now()
 
     if license['hwid'] and license['hwid'] != hwid:
+        logger.error(f"HWID mismatch for license {license_key}")
         return "HWID mismatch", 403
     if not license['active']:
+        logger.error(f"License deactivated: {license_key}")
         return "License deactivated", 403
     if current_date > expiry_date:
+        logger.error(f"License expired: {license_key}")
         return "License expired", 403
 
     # If HWID is not set, bind it to the license
@@ -286,11 +321,16 @@ def validate():
         license['hwid'] = hwid
         licenses[license_key] = license
         save_licenses(licenses)
+        logger.info(f"Bound HWID to license {license_key}")
 
+    end_time = datetime.now()
+    logger.info(f"Validated license in {(end_time - start_time).total_seconds()} seconds")
     return "valid", 200
 
 # Admin commands
 async def admin_list_products(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    start_time = datetime.now()
+    logger.info("Listing products via /admin_list_products")
     if update.effective_user.id != ADMIN_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return
@@ -307,8 +347,12 @@ async def admin_list_products(update: telegram.Update, context: ContextTypes.DEF
                                                               for t_key, t_info in info['pricing_tiers'].items()]) + "\n")
                               for key, info in products.items()])
     await update.message.reply_text(f"Products:\n{product_list}")
+    end_time = datetime.now()
+    logger.info(f"Listed products in {(end_time - start_time).total_seconds()} seconds")
 
 async def admin_add_product(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Starting /admin_add_product")
     if update.effective_user.id != ADMIN_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return ConversationHandler.END
@@ -322,13 +366,19 @@ async def admin_add_product(update: telegram.Update, context: ContextTypes.DEFAU
         "Please provide the product name (e.g., 'MT6 Expert Advisor')."
     )
     context.user_data['admin_product'] = {}
+    end_time = datetime.now()
+    logger.info(f"Finished /admin_add_product setup in {(end_time - start_time).total_seconds()} seconds")
     return ADMIN_ADD_PRODUCT
 
 async def admin_add_product_details(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Processing admin_add_product_details")
     text = update.message.text.strip()
     if 'name' not in context.user_data['admin_product']:
         context.user_data['admin_product']['name'] = text
         await update.message.reply_text("Please upload the EA file for this product (e.g., 'expert_advisor.ex5').")
+        end_time = datetime.now()
+        logger.info(f"Set product name in {(end_time - start_time).total_seconds()} seconds")
         return ADMIN_ADD_PRODUCT_FILE
     
     if 'is_trial' not in context.user_data['admin_product']:
@@ -343,6 +393,8 @@ async def admin_add_product_details(update: telegram.Update, context: ContextTyp
                 "For example: gresql1,10,50,30\n"
                 "Enter one tier per message. Type 'done' when finished."
             )
+        end_time = datetime.now()
+        logger.info(f"Set trial status in {(end_time - start_time).total_seconds()} seconds")
         return ADMIN_ADD_PRODUCT
     
     if context.user_data['admin_product']['is_trial']:
@@ -360,6 +412,8 @@ async def admin_add_product_details(update: telegram.Update, context: ContextTyp
         log_admin_action(update.effective_user.id, f"Added product ID {new_id}: {product['name']}")
         await update.message.reply_text(f"Product added successfully! ID: {new_id}")
         context.user_data.pop('admin_product', None)
+        end_time = datetime.now()
+        logger.info(f"Added trial product in {(end_time - start_time).total_seconds()} seconds")
         return ConversationHandler.END
     
     if text.lower() == 'done':
@@ -374,6 +428,8 @@ async def admin_add_product_details(update: telegram.Update, context: ContextTyp
         log_admin_action(update.effective_user.id, f"Added product ID {new_id}: {context.user_data['admin_product']['name']}")
         await update.message.reply_text(f"Product added successfully! ID: {new_id}")
         context.user_data.pop('admin_product', None)
+        end_time = datetime.now()
+        logger.info(f"Added paid product in {(end_time - start_time).total_seconds()} seconds")
         return ConversationHandler.END
     
     try:
@@ -390,12 +446,18 @@ async def admin_add_product_details(update: telegram.Update, context: ContextTyp
             'expiry_days': expiry_days
         }
         await update.message.reply_text("Tier added. Add another tier or type 'done' to finish.")
+        end_time = datetime.now()
+        logger.info(f"Added pricing tier in {(end_time - start_time).total_seconds()} seconds")
         return ADMIN_ADD_PRODUCT
     except Exception as e:
         await update.message.reply_text(f"Invalid format: {str(e)}. Please use: tier_number,price_usd,price_xlm,expiry_days (e.g., 1,10,50,30)")
+        end_time = datetime.now()
+        logger.info(f"Failed to add pricing tier in {(end_time - start_time).total_seconds()} seconds")
         return ADMIN_ADD_PRODUCT
 
 async def admin_add_product_file(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Processing admin_add_product_file")
     if not update.message.document:
         await update.message.reply_text("Please upload a file (e.g., an .ex4 or .ex5 file).")
         return ADMIN_ADD_PRODUCT_FILE
@@ -416,9 +478,13 @@ async def admin_add_product_file(update: telegram.Update, context: ContextTypes.
     log_admin_action(update.effective_user.id, f"Uploaded EA file: {file_path}")
     
     await update.message.reply_text("File uploaded successfully! Is this a trial product? (yes/no)")
+    end_time = datetime.now()
+    logger.info(f"Uploaded product file in {(end_time - start_time).total_seconds()} seconds")
     return ADMIN_ADD_PRODUCT
 
 async def admin_edit_product(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Starting /admin_edit_product")
     if update.effective_user.id != ADMIN_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return ConversationHandler.END
@@ -452,12 +518,18 @@ async def admin_edit_product(update: telegram.Update, context: ContextTypes.DEFA
             "4. Pricing tiers (if not trial)\n"
             "5. Done"
         )
+        end_time = datetime.now()
+        logger.info(f"Set up product editing in {(end_time - start_time).total_seconds()} seconds")
         return ADMIN_EDIT_PRODUCT
     else:
         await update.message.reply_text("Please provide the product ID to edit (e.g., 1).")
+        end_time = datetime.now()
+        logger.info(f"Requested product ID in {(end_time - start_time).total_seconds()} seconds")
         return ADMIN_EDIT_PRODUCT_ID
 
 async def admin_edit_product_id(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Processing admin_edit_product_id")
     product_id = update.message.text.strip()
     # Remove any "ID: " prefix if present
     product_id = product_id.replace("ID: ", "").strip()
@@ -479,9 +551,13 @@ async def admin_edit_product_id(update: telegram.Update, context: ContextTypes.D
         "4. Pricing tiers (if not trial)\n"
         "5. Done"
     )
+    end_time = datetime.now()
+    logger.info(f"Set up product editing in {(end_time - start_time).total_seconds()} seconds")
     return ADMIN_EDIT_PRODUCT
 
 async def admin_edit_product_details(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Processing admin_edit_product_details")
     choice = update.message.text.strip()
     product_id = context.user_data.get('admin_edit_product_id')
     product = context.user_data.get('admin_edit_product')
@@ -520,12 +596,18 @@ async def admin_edit_product_details(update: telegram.Update, context: ContextTy
         log_admin_action(update.effective_user.id, f"Finished editing product ID {product_id}")
         await update.message.reply_text("Product updated successfully!")
         context.user_data.clear()
+        end_time = datetime.now()
+        logger.info(f"Finished editing product in {(end_time - start_time).total_seconds()} seconds")
         return ConversationHandler.END
     else:
         await update.message.reply_text("Invalid choice. Please select an option (1-5).")
+        end_time = datetime.now()
+        logger.info(f"Invalid choice in {(end_time - start_time).total_seconds()} seconds")
         return ADMIN_EDIT_PRODUCT
 
 async def admin_edit_product_field(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Processing admin_edit_product_field")
     text = update.message.text.strip()
     product = context.user_data.get('admin_edit_product')
     field = context.user_data.get('admin_edit_field')
@@ -625,9 +707,13 @@ async def admin_edit_product_field(update: telegram.Update, context: ContextType
         "4. Pricing tiers (if not trial)\n"
         "5. Done"
     )
+    end_time = datetime.now()
+    logger.info(f"Updated product field in {(end_time - start_time).total_seconds()} seconds")
     return ADMIN_EDIT_PRODUCT
 
 async def admin_delete_product(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    start_time = datetime.now()
+    logger.info("Processing /admin_delete_product")
     if update.effective_user.id != ADMIN_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return
@@ -651,8 +737,12 @@ async def admin_delete_product(update: telegram.Update, context: ContextTypes.DE
     conn.close()
     log_admin_action(update.effective_user.id, f"Deleted product ID {product_id}: {product_name}")
     await update.message.reply_text(f"Product ID {product_id} deleted successfully!")
+    end_time = datetime.now()
+    logger.info(f"Deleted product in {(end_time - start_time).total_seconds()} seconds")
 
 async def admin_help(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    start_time = datetime.now()
+    logger.info("Processing /admin_help")
     if update.effective_user.id != ADMIN_USER_ID:
         await update.message.reply_text("You are not authorized to use this command.")
         return
@@ -681,17 +771,25 @@ async def admin_help(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE
         "💡 **Tip**: Ensure you are logged in as the admin (user ID: {ADMIN_USER_ID}) to use these commands."
     )
     await update.message.reply_text(help_text)
+    end_time = datetime.now()
+    logger.info(f"Displayed admin help in {(end_time - start_time).total_seconds()} seconds")
 
 # User commands
 async def start(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Starting /start handler")
     context.user_data.clear()
     await update.message.reply_text(
         "Welcome to LicenseBot! Let's get started.\nWhat's your name?"
     )
     context.user_data['state'] = NAME
+    end_time = datetime.now()
+    logger.info(f"Finished /start handler in {(end_time - start_time).total_seconds()} seconds")
     return NAME
 
 async def get_name(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Processing get_name")
     context.user_data['name'] = update.message.text.strip()
     products = load_products()
     product_list = "\n".join([f"{key}. {info['name']}" for key, info in products.items()])
@@ -699,9 +797,13 @@ async def get_name(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) 
         f"Hello {context.user_data['name']}! Please select a product:\n{product_list}\n\nType the number of your choice (e.g., 1 or 2 for full versions, 3 or 4 for trials)."
     )
     context.user_data['state'] = PRODUCT
+    end_time = datetime.now()
+    logger.info(f"Processed get_name in {(end_time - start_time).total_seconds()} seconds")
     return PRODUCT
 
 async def select_product(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Processing select_product")
     product_choice = update.message.text.strip()
     products = load_products()
     if product_choice not in products:
@@ -776,6 +878,8 @@ async def select_product(update: telegram.Update, context: ContextTypes.DEFAULT_
                 f"An error occurred while sending the files: {str(e)}\n"
                 f"Please use /resend {license_key} to try again."
             )
+        end_time = datetime.now()
+        logger.info(f"Generated trial license in {(end_time - start_time).total_seconds()} seconds")
         return ConversationHandler.END
     
     pricing_tiers = product_info['pricing_tiers']
@@ -785,9 +889,13 @@ async def select_product(update: telegram.Update, context: ContextTypes.DEFAULT_
         f"Please select a pricing tier:\n{tier_list}\n\nType the number of your choice (e.g., 1, 2, 3, or 4)."
     )
     context.user_data['state'] = PRICING_TIER
+    end_time = datetime.now()
+    logger.info(f"Selected product in {(end_time - start_time).total_seconds()} seconds")
     return PRICING_TIER
 
 async def select_pricing_tier(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Processing select_pricing_tier")
     tier_choice = update.message.text.strip()
     product_choice = context.user_data['product']
     products = load_products()
@@ -816,9 +924,13 @@ async def select_pricing_tier(update: telegram.Update, context: ContextTypes.DEF
         "Please type the address manually to avoid copying issues."
     )
     context.user_data['state'] = PAYMENT
+    end_time = datetime.now()
+    logger.info(f"Selected pricing tier in {(end_time - start_time).total_seconds()} seconds")
     return PAYMENT
 
 async def verify_payment(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Processing verify_payment")
     sender_address = update.message.text.strip()
     sender_address = re.sub(r'[^A-Z0-9]', '', sender_address.upper())
     
@@ -901,15 +1013,21 @@ async def verify_payment(update: telegram.Update, context: ContextTypes.DEFAULT_
                 f"An error occurred while sending the files: {str(e)}\n"
                 f"Please use /resend {license_key} to try again."
             )
+        end_time = datetime.now()
+        logger.info(f"Verified payment and generated license in {(end_time - start_time).total_seconds()} seconds")
         return ConversationHandler.END
     else:
         await update.message.reply_text(
             "Payment not found. Please ensure you sent the correct amount to the address provided.\n"
             f"Expected address for testing: {TEST_ADDRESS}"
         )
+        end_time = datetime.now()
+        logger.info(f"Failed payment verification in {(end_time - start_time).total_seconds()} seconds")
         return PAYMENT
 
 async def resend_files(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    start_time = datetime.now()
+    logger.info("Processing /resend")
     if not context.args:
         await update.message.reply_text("Please provide your license key. Usage: /resend <license_key>")
         return
@@ -954,8 +1072,12 @@ async def resend_files(update: telegram.Update, context: ContextTypes.DEFAULT_TY
             f"An error occurred while resending the files: {str(e)}\n"
             "Please contact support with your license key and transaction details."
         )
+    end_time = datetime.now()
+    logger.info(f"Resent files in {(end_time - start_time).total_seconds()} seconds")
 
 async def validate_license(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    start_time = datetime.now()
+    logger.info("Processing /validate")
     context.user_data.pop('state', None)
     context.user_data.pop('name', None)
     context.user_data.pop('product', None)
@@ -1002,8 +1124,12 @@ async def validate_license(update: telegram.Update, context: ContextTypes.DEFAUL
         context.user_data['validate_key'] = license_key
         context.user_data['validate_state'] = 'awaiting_hwid'
         context.user_data['validate_start_time'] = datetime.now()
+    end_time = datetime.now()
+    logger.info(f"Processed /validate in {(end_time - start_time).total_seconds()} seconds")
 
 async def handle_validate_hwid(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    start_time = datetime.now()
+    logger.info("Processing handle_validate_hwid")
     if 'validate_state' not in context.user_data or context.user_data['validate_state'] != 'awaiting_hwid':
         return
 
@@ -1068,10 +1194,16 @@ async def handle_validate_hwid(update: telegram.Update, context: ContextTypes.DE
     context.user_data.pop('validate_state', None)
     context.user_data.pop('validate_key', None)
     context.user_data.pop('validate_start_time', None)
+    end_time = datetime.now()
+    logger.info(f"Processed handle_validate_hwid in {(end_time - start_time).total_seconds()} seconds")
 
 async def cancel(update: telegram.Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    start_time = datetime.now()
+    logger.info("Processing /cancel")
     await update.message.reply_text("Process cancelled.")
     context.user_data.clear()
+    end_time = datetime.now()
+    logger.info(f"Processed /cancel in {(end_time - start_time).total_seconds()} seconds")
     return ConversationHandler.END
 
 def setup_application():
@@ -1116,6 +1248,10 @@ def signal_handler(sig, frame):
 
 async def initialize_and_set_webhook():
     try:
+        logger.info("Testing Telegram API connectivity...")
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/getMe")
+            logger.info(f"Telegram API response: {response.status_code} - {response.text}")
         logger.info("Initializing application...")
         await application.initialize()
         logger.info("Starting application...")
@@ -1141,15 +1277,12 @@ def main():
 
     # Set the webhook in the event loop
     try:
+        logger.info("Starting webhook setup...")
         future = asyncio.run_coroutine_threadsafe(initialize_and_set_webhook(), loop)
         future.result()  # Wait for the coroutine to complete
+        logger.info("Webhook setup completed successfully")
     except Exception as e:
         logger.error(f"Error during initialization or webhook setup: {str(e)}")
         sys.exit(1)
 
-    # Start Flask server to handle webhook requests (Flask runs in the main thread)
-    logger.info("Starting Flask server...")
-    app.run(host='0.0.0.0', port=5000)
-
-if __name__ == '__main__':
-    main()
+    #
