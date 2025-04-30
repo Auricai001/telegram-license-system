@@ -44,6 +44,9 @@ NAME, PRODUCT, PRICING_TIER, PAYMENT, ADMIN_ADD_PRODUCT, ADMIN_ADD_PRODUCT_FILE,
 # Initialize Flask app
 app = Flask(__name__)
 
+# Initialize Telegram bot (will be set up in main())
+application = None
+
 # Database connection
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL)
@@ -234,6 +237,13 @@ def check_payment(sender_address):
     if sender_address == TEST_ADDRESS:
         return True, "simulated-tx-hash-1234567890"
     return False, None
+
+# Flask endpoint for Telegram webhook
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    update = telegram.Update.de_json(request.get_json(force=True), application.bot)
+    application.process_update(update)
+    return 'OK', 200
 
 # Flask endpoint for license validation
 @app.route('/validate', methods=['POST'])
@@ -1066,16 +1076,11 @@ def main():
     # Initialize the database
     init_db()
 
-    # Start Flask server in a separate thread
-    flask_thread = threading.Thread(target=run_flask)
-    flask_thread.daemon = True
-    flask_thread.start()
-
     # Set up signal handlers for graceful shutdown
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    # Start Telegram bot with conflict handling
+    # Start Telegram bot in webhook mode
     global application
     application = Application.builder().token(TELEGRAM_TOKEN).build()
 
@@ -1111,27 +1116,14 @@ def main():
     application.add_handler(CommandHandler("admin_help", admin_help))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_validate_hwid))
 
-    # Retry polling with exponential backoff in case of conflicts
-    retry_count = 0
-    max_retries = 5
-    base_delay = 5  # seconds
+    # Set webhook (Render URL for the webhook)
+    webhook_url = "https://licensebot-hkk2.onrender.com/webhook"
+    print(f"Setting webhook to {webhook_url}...")
+    application.bot.set_webhook(url=webhook_url)
 
-    while retry_count < max_retries:
-        try:
-            print(f"Starting bot polling (attempt {retry_count + 1}/{max_retries})...")
-            application.run_polling()
-            break  # Exit loop if polling starts successfully
-        except telegram.error.Conflict as e:
-            retry_count += 1
-            if retry_count == max_retries:
-                print(f"Failed to start bot after {max_retries} attempts: {e}")
-                sys.exit(1)
-            delay = base_delay * (2 ** retry_count)  # Exponential backoff
-            print(f"Conflict detected: {e}. Retrying in {delay} seconds...")
-            time.sleep(delay)
-        except Exception as e:
-            print(f"Unexpected error: {e}")
-            sys.exit(1)
+    # Start Flask server to handle webhook requests
+    print("Starting Flask server...")
+    run_flask()
 
 if __name__ == '__main__':
     main()
