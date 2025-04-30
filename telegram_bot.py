@@ -13,7 +13,6 @@ from flask import Flask, request
 import signal
 import sys
 import asyncio
-import threading
 
 # Load environment variables
 load_dotenv()
@@ -1101,15 +1100,18 @@ def setup_application():
     application.add_handler(CommandHandler("admin_help", admin_help))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_validate_hwid))
 
-def run_bot():
-    application.run_polling()
-
 def signal_handler(sig, frame):
     print("Shutting down bot gracefully...")
     application.stop_running()
     loop.stop()
     loop.close()
     sys.exit(0)
+
+async def set_webhook():
+    webhook_url = "https://licensebot-hkk2.onrender.com/webhook"
+    print(f"Setting webhook to {webhook_url}...")
+    await application.bot.set_webhook(url=webhook_url)
+    print("Webhook set successfully!")
 
 def main():
     # Initialize the database
@@ -1122,14 +1124,9 @@ def main():
     # Set up the Telegram bot handlers
     setup_application()
 
-    # Start the bot's event loop in a separate thread
-    bot_thread = threading.Thread(target=run_bot)
-    bot_thread.start()
-
-    # Set webhook (Render URL for the webhook)
-    webhook_url = "https://licensebot-hkk2.onrender.com/webhook"
-    print(f"Setting webhook to {webhook_url}...")
-    application.bot.set_webhook(url=webhook_url)
+    # Set the webhook in the event loop
+    future = asyncio.run_coroutine_threadsafe(set_webhook(), loop)
+    future.result()  # Wait for the coroutine to complete
 
     # Start Flask server to handle webhook requests
     print("Starting Flask server...")
