@@ -13,17 +13,22 @@ from flask import Flask, request
 import signal
 import sys
 import asyncio
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-print(f"Loaded TELEGRAM_TOKEN: {TELEGRAM_TOKEN}")
+logger.info(f"Loaded TELEGRAM_TOKEN: {TELEGRAM_TOKEN}")
 STELLAR_PUBLIC_KEY = os.getenv('STELLAR_PUBLIC_KEY')
 STELLAR_SECRET_KEY = os.getenv('STELLAR_SECRET_KEY')
-print(f"Loaded STELLAR_PUBLIC_KEY: {STELLAR_PUBLIC_KEY}")
-print(f"Loaded STELLAR_SECRET_KEY: {STELLAR_SECRET_KEY}")
+logger.info(f"Loaded STELLAR_PUBLIC_KEY: {STELLAR_PUBLIC_KEY}")
+logger.info(f"Loaded STELLAR_SECRET_KEY: {STELLAR_SECRET_KEY}")
 DATABASE_URL = os.getenv('DATABASE_URL')
-print(f"Loaded DATABASE_URL: {DATABASE_URL}")
+logger.info(f"Loaded DATABASE_URL: {DATABASE_URL}")
 
 # Admin settings
 ADMIN_USER_ID = 359966763  # Replace with your actual Telegram user ID
@@ -229,7 +234,7 @@ def create_pdf_license(license_key, username, expiry, product_name, is_trial=Fal
     return pdf_file
 
 def check_payment(sender_address):
-    print(f"check_payment: Comparing sender_address='{sender_address}' with TEST_ADDRESS='{TEST_ADDRESS}'")
+    logger.info(f"check_payment: Comparing sender_address='{sender_address}' with TEST_ADDRESS='{TEST_ADDRESS}'")
     if sender_address == TEST_ADDRESS:
         return True, "simulated-tx-hash-1234567890"
     return False, None
@@ -244,9 +249,11 @@ loop = asyncio.get_event_loop()
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = telegram.Update.de_json(request.get_json(force=True), application.bot)
+    logger.info("Received webhook update")
     # Run the async process_update in the application's event loop
     future = asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
     future.result()  # Wait for the coroutine to complete
+    logger.info("Processed webhook update")
     return 'OK', 200
 
 # Flask endpoint for license validation
@@ -483,7 +490,7 @@ async def admin_edit_product_details(update: telegram.Update, context: ContextTy
         await update.message.reply_text("Invalid state. Please start the edit process again with /admin_edit_product.")
         return ConversationHandler.END
     
-    print(f"admin_edit_product_details: choice={choice}")
+    logger.info(f"admin_edit_product_details: choice={choice}")
     
     if choice == '1':
         await update.message.reply_text("Please provide the new product name.")
@@ -528,7 +535,7 @@ async def admin_edit_product_field(update: telegram.Update, context: ContextType
         await update.message.reply_text("Invalid state. Please start the edit process again with /admin_edit_product.")
         return ConversationHandler.END
     
-    print(f"admin_edit_product_field: field={field}, subfield={subfield}, text={text}")
+    logger.info(f"admin_edit_product_field: field={field}, subfield={subfield}, text={text}")
 
     if subfield == 'edit_tier':
         try:
@@ -602,6 +609,7 @@ async def admin_edit_product_field(update: telegram.Update, context: ContextType
                 "price_usd,price_xlm,expiry_days\n"
                 "For example: 10,50,30"
             )
+            return ADMINrate_limit = 120
             return ADMIN_EDIT_PRODUCT_FIELD
         else:
             await update.message.reply_text("Invalid option. Please specify a tier to edit (e.g., 1), 'add', or 'delete <tier_number>'.")
@@ -1101,17 +1109,25 @@ def setup_application():
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_validate_hwid))
 
 def signal_handler(sig, frame):
-    print("Shutting down bot gracefully...")
+    logger.info("Shutting down bot gracefully...")
     application.stop_running()
     loop.stop()
     loop.close()
     sys.exit(0)
 
-async def set_webhook():
-    webhook_url = "https://licensebot-hkk2.onrender.com/webhook"
-    print(f"Setting webhook to {webhook_url}...")
-    await application.bot.set_webhook(url=webhook_url)
-    print("Webhook set successfully!")
+async def initialize_and_set_webhook():
+    try:
+        logger.info("Initializing application...")
+        await application.initialize()
+        logger.info("Starting application...")
+        await application.start()
+        webhook_url = "https://licensebot-hkk2.onrender.com/webhook"
+        logger.info(f"Setting webhook to {webhook_url}...")
+        await application.bot.set_webhook(url=webhook_url)
+        logger.info("Webhook set successfully!")
+    except Exception as e:
+        logger.error(f"Failed to set webhook: {str(e)}")
+        raise
 
 def main():
     # Initialize the database
@@ -1125,11 +1141,15 @@ def main():
     setup_application()
 
     # Set the webhook in the event loop
-    future = asyncio.run_coroutine_threadsafe(set_webhook(), loop)
-    future.result()  # Wait for the coroutine to complete
+    try:
+        future = asyncio.run_coroutine_threadsafe(initialize_and_set_webhook(), loop)
+        future.result()  # Wait for the coroutine to complete
+    except Exception as e:
+        logger.error(f"Error during initialization or webhook setup: {str(e)}")
+        sys.exit(1)
 
-    # Start Flask server to handle webhook requests
-    print("Starting Flask server...")
+    # Start Flask server to handle webhook requests (Flask runs in the main thread)
+    logger.info("Starting Flask server...")
     app.run(host='0.0.0.0', port=5000)
 
 if __name__ == '__main__':
