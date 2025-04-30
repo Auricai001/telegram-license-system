@@ -609,7 +609,6 @@ async def admin_edit_product_field(update: telegram.Update, context: ContextType
                 "price_usd,price_xlm,expiry_days\n"
                 "For example: 10,50,30"
             )
-            return ADMINrate_limit = 120
             return ADMIN_EDIT_PRODUCT_FIELD
         else:
             await update.message.reply_text("Invalid option. Please specify a tier to edit (e.g., 1), 'add', or 'delete <tier_number>'.")
