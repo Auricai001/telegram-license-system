@@ -12,6 +12,8 @@ from psycopg2 import sql
 from flask import Flask, request
 import signal
 import sys
+import asyncio
+import threading
 
 # Load environment variables
 load_dotenv()
@@ -236,11 +238,16 @@ def check_payment(sender_address):
 # Initialize Telegram bot application
 application = Application.builder().token(TELEGRAM_TOKEN).build()
 
+# Get the event loop for the application
+loop = asyncio.get_event_loop()
+
 # Flask endpoint for Telegram webhook
 @app.route('/webhook', methods=['POST'])
 def webhook():
     update = telegram.Update.de_json(request.get_json(force=True), application.bot)
-    application.process_update(update)
+    # Run the async process_update in the application's event loop
+    future = asyncio.run_coroutine_threadsafe(application.process_update(update), loop)
+    future.result()  # Wait for the coroutine to complete
     return 'OK', 200
 
 # Flask endpoint for license validation
@@ -1094,9 +1101,14 @@ def setup_application():
     application.add_handler(CommandHandler("admin_help", admin_help))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_validate_hwid))
 
+def run_bot():
+    application.run_polling()
+
 def signal_handler(sig, frame):
     print("Shutting down bot gracefully...")
     application.stop_running()
+    loop.stop()
+    loop.close()
     sys.exit(0)
 
 def main():
@@ -1109,6 +1121,10 @@ def main():
 
     # Set up the Telegram bot handlers
     setup_application()
+
+    # Start the bot's event loop in a separate thread
+    bot_thread = threading.Thread(target=run_bot)
+    bot_thread.start()
 
     # Set webhook (Render URL for the webhook)
     webhook_url = "https://licensebot-hkk2.onrender.com/webhook"
